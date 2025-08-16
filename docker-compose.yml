@@ -43,17 +43,9 @@ services:
       "ollama serve & \
        sleep 2 && \
        ollama pull mistral:7b-instruct && \
+       ollama pull nomic-embed-text || true && \
        wait"
     ]
-
-  tei:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-    container_name: inboxai-tei
-    environment:
-      - MODEL_ID=BAAI/bge-small-en-v1.5
-      - MAX_BATCH_TOKENS=8192
-    ports:
-      - "8080:80"
 
 volumes:
   db:
