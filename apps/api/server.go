@@ -12,6 +12,8 @@ func NewServer(addr string) *http.Server {
 
 	// Routes (mount API under /)
 	mux.HandleFunc("GET /health", HealthHandler)
+	mux.HandleFunc("GET /ollama/health", OllamaHealthHandler) // test Ollama connection
+	mux.HandleFunc("POST /ollama/test", OllamaTestHandler)    // test text generation
 	mux.HandleFunc("GET /threads", ThreadsListHandler)       // stub
 	mux.HandleFunc("GET /threads/{id}", ThreadDetailHandler) // stub
 	mux.HandleFunc("POST /search", SearchHandler)            // stub

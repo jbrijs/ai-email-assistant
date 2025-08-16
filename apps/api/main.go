@@ -10,6 +10,12 @@ import (
 )
 
 func main() {
+	// Initialize database connection
+	if err := InitDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer CloseDB()
+
 	port := getenv("PORT", "3001")
 	srv := NewServer(":" + port) // defined in server.go
 
