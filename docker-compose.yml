@@ -1,6 +1,60 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: inboxai-db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: inboxai
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inboxai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build: ./apps/api
+    container_name: inboxai-api
     env_file: ./.env.local
-    depends_on: [db, ollama]
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      tei:
+        condition: service_started
     ports:
       - "3001:3001"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: inboxai-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    entrypoint: ["/bin/sh","-lc",
+      "ollama serve & \
+       sleep 2 && \
+       ollama pull mistral:7b-instruct && \
+       wait"
+    ]
+
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    container_name: inboxai-tei
+    environment:
+      - MODEL_ID=BAAI/bge-small-en-v1.5
+      - MAX_BATCH_TOKENS=8192
+    ports:
+      - "8080:80"
+
+volumes:
+  db:
+  ollama:
