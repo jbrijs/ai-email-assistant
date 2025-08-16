@@ -1,0 +1,6 @@
+  api:
+    build: ./apps/api
+    env_file: ./.env.local
+    depends_on: [db, ollama]
+    ports:
+      - "3001:3001"
