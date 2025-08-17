@@ -11,19 +11,41 @@ services:
       - db:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d inboxai && psql -U postgres -d inboxai -c 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d inboxai && psql -U postgres -d inboxai -c 'SELECT 1'",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  migrations:
+    image: migrate/migrate:latest
+    container_name: inboxai-migrations
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://postgres:postgres@db:5432/inboxai?sslmode=disable",
+        "up",
+      ]
+    volumes:
+      - ./db/migrations:/migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   api:
     build: ./apps/api
     container_name: inboxai-api
     env_file: ./.env.local
     depends_on:
-      db:
-        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       ollama:
         condition: service_started
     ports:

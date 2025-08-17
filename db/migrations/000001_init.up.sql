@@ -1,4 +1,7 @@
--- Initial migration for InboxAI
+-- Migration: 000001_init
+-- Created: 2024-12-01
+-- Description: Initial database schema for InboxAI
+
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto; -- for gen_random_uuid()
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -66,31 +69,22 @@ CREATE INDEX IF NOT EXISTS idx_summaries_user_category
   ON summaries(user_id, category);
 
 -- RAG chunks (multiple chunks per message/thread)
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='rag_chunks' AND column_name='embedding') THEN
-    CREATE TABLE rag_chunks (
-      id BIGSERIAL PRIMARY KEY,
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      thread_id TEXT NOT NULL REFERENCES email_threads(id) ON DELETE CASCADE,
-      message_id TEXT NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
-      chunk_index INT NOT NULL,       -- order of chunks within the message
-      chunk_text TEXT NOT NULL,
-      embedding VECTOR(768),         
-      sent_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  END IF;
-END$$;
+CREATE TABLE IF NOT EXISTS rag_chunks (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  thread_id TEXT NOT NULL REFERENCES email_threads(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
+  chunk_index INT NOT NULL,       -- order of chunks within the message
+  chunk_text TEXT NOT NULL,
+  embedding VECTOR(768),         
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_rag_chunks_msg_idx
   ON rag_chunks(message_id, chunk_index);
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_user_sent
   ON rag_chunks(user_id, sent_at DESC);
--- Vector index: create after data load for speed; run ANALYZE afterward.
--- CREATE INDEX IF NOT EXISTS idx_rag_chunks_vec
---   ON rag_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 -- Lightweight graph
 CREATE TABLE IF NOT EXISTS kg_nodes (
@@ -143,6 +137,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_status_run_after ON jobs(status, run_after);
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
 
+-- Triggers for updated_at
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -150,18 +145,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tg_users_updated_at') THEN
-    CREATE TRIGGER tg_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tg_threads_updated_at') THEN
-    CREATE TRIGGER tg_threads_updated_at BEFORE UPDATE ON email_threads
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tg_emails_updated_at') THEN
-    CREATE TRIGGER tg_emails_updated_at BEFORE UPDATE ON emails
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-  END IF;
-END$$;
+CREATE TRIGGER tg_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER tg_threads_updated_at BEFORE UPDATE ON email_threads
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER tg_emails_updated_at BEFORE UPDATE ON emails
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
