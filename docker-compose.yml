@@ -43,6 +43,8 @@ services:
     build: ./apps/api
     container_name: inboxai-api
     env_file: ./.env.local
+    environment:
+      - DOCKER_ENV=true
     depends_on:
       migrations:
         condition: service_completed_successfully

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -67,19 +68,29 @@ type EmbeddingResponse struct {
 // NewOllamaClient creates a new Ollama client
 func NewOllamaClient(baseURL string) *OllamaClient {
 	if baseURL == "" {
-		baseURL = "http://localhost:11434"
+		// When running in Docker Compose, connect to the ollama service
+		// When running locally, connect to localhost
+		if os.Getenv("DOCKER_ENV") == "true" {
+			baseURL = "http://ollama:11434"
+		} else {
+			baseURL = "http://localhost:11434"
+		}
 	}
 
 	return &OllamaClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 5 * time.Minute, // Increase timeout for slow CPU inference
 		},
 	}
 }
 
 // GenerateText generates text using the specified model
 func (c *OllamaClient) GenerateText(ctx context.Context, model, prompt, systemPrompt string) (string, error) {
+	// Add timeout context for the request
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+	defer cancel()
+	
 	req := GenerateRequest{
 		Model:  model,
 		Prompt: prompt,

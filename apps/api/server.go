@@ -30,8 +30,8 @@ func NewServer(addr string) *http.Server {
 		Addr:         addr,
 		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  75 * time.Second,
+		WriteTimeout: 5 * time.Minute, // Match Ollama client timeout
+		IdleTimeout:  6 * time.Minute, // Slightly longer than write timeout
 	}
 }
 
